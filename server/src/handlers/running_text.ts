@@ -1,47 +1,123 @@
+import { db } from '../db';
+import { runningTextTable } from '../db/schema';
 import { type CreateRunningTextInput, type UpdateRunningTextInput, type RunningText } from '../schema';
+import { eq, desc, and } from 'drizzle-orm';
 
 export async function getActiveRunningText(): Promise<RunningText | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching the currently active running text from the database.
-    // Should return the running text that has is_active = true.
-    return null;
+  try {
+    const results = await db.select()
+      .from(runningTextTable)
+      .where(eq(runningTextTable.is_active, true))
+      .limit(1)
+      .execute();
+
+    return results.length > 0 ? results[0] : null;
+  } catch (error) {
+    console.error('Failed to fetch active running text:', error);
+    throw error;
+  }
 }
 
 export async function getAllRunningTexts(): Promise<RunningText[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all running text entries from the database,
-    // ordered by created date descending.
-    return [];
+  try {
+    const results = await db.select()
+      .from(runningTextTable)
+      .orderBy(desc(runningTextTable.created_at))
+      .execute();
+
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch all running texts:', error);
+    throw error;
+  }
 }
 
 export async function createRunningText(input: CreateRunningTextInput): Promise<RunningText> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new running text entry.
-    // If is_active is true, should deactivate other running texts first.
-    return Promise.resolve({
-        id: 0, // Placeholder ID
+  try {
+    // If the new running text should be active, deactivate all others first
+    if (input.is_active) {
+      await db.update(runningTextTable)
+        .set({ 
+          is_active: false, 
+          updated_at: new Date() 
+        })
+        .where(eq(runningTextTable.is_active, true))
+        .execute();
+    }
+
+    // Insert the new running text
+    const result = await db.insert(runningTextTable)
+      .values({
         content: input.content,
         is_active: input.is_active,
         created_at: new Date(),
         updated_at: new Date()
-    });
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Failed to create running text:', error);
+    throw error;
+  }
 }
 
 export async function updateRunningText(input: UpdateRunningTextInput): Promise<RunningText> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating an existing running text entry.
-    // If is_active is being set to true, should deactivate other running texts first.
-    return Promise.resolve({
-        id: input.id,
-        content: input.content || 'placeholder',
-        is_active: input.is_active ?? true,
-        created_at: new Date(),
-        updated_at: new Date()
-    });
+  try {
+    // If setting this running text to active, deactivate all others first
+    if (input.is_active === true) {
+      await db.update(runningTextTable)
+        .set({ 
+          is_active: false, 
+          updated_at: new Date() 
+        })
+        .where(eq(runningTextTable.is_active, true))
+        .execute();
+    }
+
+    // Prepare update values, only including provided fields
+    const updateValues: any = {
+      updated_at: new Date()
+    };
+
+    if (input.content !== undefined) {
+      updateValues.content = input.content;
+    }
+    if (input.is_active !== undefined) {
+      updateValues.is_active = input.is_active;
+    }
+
+    // Update the running text
+    const result = await db.update(runningTextTable)
+      .set(updateValues)
+      .where(eq(runningTextTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Running text with id ${input.id} not found`);
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('Failed to update running text:', error);
+    throw error;
+  }
 }
 
 export async function deleteRunningText(id: number): Promise<void> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is deleting a running text entry from the database.
-    return Promise.resolve();
+  try {
+    const result = await db.delete(runningTextTable)
+      .where(eq(runningTextTable.id, id))
+      .returning({ id: runningTextTable.id })
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Running text with id ${id} not found`);
+    }
+  } catch (error) {
+    console.error('Failed to delete running text:', error);
+    throw error;
+  }
 }

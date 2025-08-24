@@ -1,62 +1,132 @@
+import { db } from '../db';
+import { postsTable } from '../db/schema';
 import { type CreatePostInput, type UpdatePostInput, type Post } from '../schema';
+import { eq, desc } from 'drizzle-orm';
 
-export async function createPost(input: CreatePostInput): Promise<Post> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new blog post and persisting it in the database.
-    // If no date is provided, use the current date.
-    return Promise.resolve({
-        id: 0, // Placeholder ID
+export const createPost = async (input: CreatePostInput): Promise<Post> => {
+  try {
+    // Use current date if no date is provided
+    const postDate = input.date || new Date();
+    
+    // Insert post record
+    const result = await db.insert(postsTable)
+      .values({
         title: input.title,
         content: input.content,
         category: input.category,
-        date: input.date || new Date(),
-        created_at: new Date(),
-        updated_at: new Date()
-    });
-}
+        date: postDate
+      })
+      .returning()
+      .execute();
 
-export async function getPosts(): Promise<Post[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all blog posts from the database,
-    // ordered by date descending (newest first).
-    return [];
-}
+    return result[0];
+  } catch (error) {
+    console.error('Post creation failed:', error);
+    throw error;
+  }
+};
 
-export async function getPostById(id: number): Promise<Post | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching a specific blog post by ID from the database.
-    return null;
-}
+export const getPosts = async (): Promise<Post[]> => {
+  try {
+    // Fetch all posts ordered by date descending (newest first)
+    const results = await db.select()
+      .from(postsTable)
+      .orderBy(desc(postsTable.date))
+      .execute();
 
-export async function getRecentPosts(limit: number = 5): Promise<Post[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching the most recent blog posts for the home page,
-    // limited to the specified number.
-    return [];
-}
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch posts:', error);
+    throw error;
+  }
+};
 
-export async function getPostsByCategory(category: string): Promise<Post[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all blog posts in a specific category.
-    return [];
-}
+export const getPostById = async (id: number): Promise<Post | null> => {
+  try {
+    const results = await db.select()
+      .from(postsTable)
+      .where(eq(postsTable.id, id))
+      .execute();
 
-export async function updatePost(input: UpdatePostInput): Promise<Post> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating an existing blog post in the database.
-    return Promise.resolve({
-        id: input.id,
-        title: 'placeholder',
-        content: 'placeholder',
-        category: 'placeholder',
-        date: new Date(),
-        created_at: new Date(),
-        updated_at: new Date()
-    });
-}
+    return results[0] || null;
+  } catch (error) {
+    console.error('Failed to fetch post by ID:', error);
+    throw error;
+  }
+};
 
-export async function deletePost(id: number): Promise<void> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is deleting a blog post from the database.
-    return Promise.resolve();
-}
+export const getRecentPosts = async (limit: number = 5): Promise<Post[]> => {
+  try {
+    const results = await db.select()
+      .from(postsTable)
+      .orderBy(desc(postsTable.date))
+      .limit(limit)
+      .execute();
+
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch recent posts:', error);
+    throw error;
+  }
+};
+
+export const getPostsByCategory = async (category: string): Promise<Post[]> => {
+  try {
+    const results = await db.select()
+      .from(postsTable)
+      .where(eq(postsTable.category, category))
+      .orderBy(desc(postsTable.date))
+      .execute();
+
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch posts by category:', error);
+    throw error;
+  }
+};
+
+export const updatePost = async (input: UpdatePostInput): Promise<Post> => {
+  try {
+    // Build update object with only provided fields
+    const updateData: any = {
+      updated_at: new Date() // Always update the timestamp
+    };
+
+    if (input.title !== undefined) updateData.title = input.title;
+    if (input.content !== undefined) updateData.content = input.content;
+    if (input.category !== undefined) updateData.category = input.category;
+    if (input.date !== undefined) updateData.date = input.date;
+
+    // Update the post
+    const result = await db.update(postsTable)
+      .set(updateData)
+      .where(eq(postsTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Post with ID ${input.id} not found`);
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('Post update failed:', error);
+    throw error;
+  }
+};
+
+export const deletePost = async (id: number): Promise<void> => {
+  try {
+    const result = await db.delete(postsTable)
+      .where(eq(postsTable.id, id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Post with ID ${id} not found`);
+    }
+  } catch (error) {
+    console.error('Post deletion failed:', error);
+    throw error;
+  }
+};

@@ -1,46 +1,109 @@
+import { db } from '../db';
+import { usersTable } from '../db/schema';
 import { type CreateUserInput, type UpdateUserInput, type User } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function createUser(input: CreateUserInput): Promise<User> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new user account with hashed password
-    // and storing it in the database.
-    return Promise.resolve({
-        id: 0, // Placeholder ID
+// Simple password hashing function using Bun's built-in crypto
+const hashPassword = async (password: string): Promise<string> => {
+  return await Bun.password.hash(password);
+};
+
+export const createUser = async (input: CreateUserInput): Promise<User> => {
+  try {
+    // Hash the password before storing
+    const hashedPassword = await hashPassword(input.password);
+
+    // Insert user record
+    const result = await db.insert(usersTable)
+      .values({
         username: input.username,
-        password: 'hashed_password', // In real implementation, this should be hashed
-        role: input.role,
-        created_at: new Date()
-    });
-}
+        password: hashedPassword,
+        role: input.role
+      })
+      .returning()
+      .execute();
 
-export async function getUsers(): Promise<User[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all users from the database.
-    // Note: In production, this should exclude password fields or be admin-only.
-    return [];
-}
+    return result[0];
+  } catch (error) {
+    console.error('User creation failed:', error);
+    throw error;
+  }
+};
 
-export async function getUserById(id: number): Promise<User | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching a specific user by ID from the database.
-    return null;
-}
+export const getUsers = async (): Promise<User[]> => {
+  try {
+    const result = await db.select()
+      .from(usersTable)
+      .execute();
 
-export async function updateUser(input: UpdateUserInput): Promise<User> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating user information in the database.
-    // Password should be hashed if provided.
-    return Promise.resolve({
-        id: input.id,
-        username: 'placeholder',
-        password: 'hashed_password',
-        role: 'user',
-        created_at: new Date()
-    });
-}
+    return result;
+  } catch (error) {
+    console.error('Failed to fetch users:', error);
+    throw error;
+  }
+};
 
-export async function deleteUser(id: number): Promise<void> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is deleting a user from the database.
-    return Promise.resolve();
-}
+export const getUserById = async (id: number): Promise<User | null> => {
+  try {
+    const result = await db.select()
+      .from(usersTable)
+      .where(eq(usersTable.id, id))
+      .execute();
+
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error('Failed to fetch user by ID:', error);
+    throw error;
+  }
+};
+
+export const updateUser = async (input: UpdateUserInput): Promise<User> => {
+  try {
+    // Build update object, excluding undefined values
+    const updateData: any = {};
+    
+    if (input.username !== undefined) {
+      updateData.username = input.username;
+    }
+    
+    if (input.password !== undefined) {
+      updateData.password = await hashPassword(input.password);
+    }
+    
+    if (input.role !== undefined) {
+      updateData.role = input.role;
+    }
+
+    // Update the user
+    const result = await db.update(usersTable)
+      .set(updateData)
+      .where(eq(usersTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error('User not found');
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('User update failed:', error);
+    throw error;
+  }
+};
+
+export const deleteUser = async (id: number): Promise<void> => {
+  try {
+    const result = await db.delete(usersTable)
+      .where(eq(usersTable.id, id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error('User not found');
+    }
+  } catch (error) {
+    console.error('User deletion failed:', error);
+    throw error;
+  }
+};

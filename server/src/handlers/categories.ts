@@ -1,31 +1,67 @@
+import { db } from '../db';
+import { categoriesTable, postsTable } from '../db/schema';
 import { type CreateCategoryInput, type Category } from '../schema';
+import { eq, asc } from 'drizzle-orm';
 
 export async function getCategories(): Promise<Category[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all blog post categories from the database,
-    // ordered by name alphabetically.
-    return [];
+  try {
+    const results = await db.select()
+      .from(categoriesTable)
+      .orderBy(asc(categoriesTable.name))
+      .execute();
+
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch categories:', error);
+    throw error;
+  }
 }
 
 export async function createCategory(input: CreateCategoryInput): Promise<Category> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new blog post category.
-    return Promise.resolve({
-        id: 0, // Placeholder ID
-        name: input.name,
-        created_at: new Date()
-    });
+  try {
+    const result = await db.insert(categoriesTable)
+      .values({
+        name: input.name
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Category creation failed:', error);
+    throw error;
+  }
 }
 
 export async function getCategoryById(id: number): Promise<Category | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching a specific category by ID from the database.
-    return null;
+  try {
+    const results = await db.select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.id, id))
+      .execute();
+
+    return results[0] || null;
+  } catch (error) {
+    console.error('Failed to fetch category by ID:', error);
+    throw error;
+  }
 }
 
 export async function deleteCategory(id: number): Promise<void> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is deleting a category from the database.
-    // Should also handle reassigning or deleting posts in this category.
-    return Promise.resolve();
+  try {
+    // First, update all posts in this category to use 'Uncategorized'
+    // This ensures we don't orphan posts when deleting a category
+    await db.update(postsTable)
+      .set({ category: 'Uncategorized' })
+      .where(eq(postsTable.category, String(id)))
+      .execute();
+
+    // Then delete the category
+    await db.delete(categoriesTable)
+      .where(eq(categoriesTable.id, id))
+      .execute();
+  } catch (error) {
+    console.error('Category deletion failed:', error);
+    throw error;
+  }
 }
